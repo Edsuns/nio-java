@@ -29,7 +29,7 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
 
     public QueuedProcessor(int bufferSize, ExecutorService executorService) {
         if (bufferSize <= 0) throw new IllegalArgumentException("bufferSize <= 0");
-        this.byteBufferPool = new ByteBufferPool(bufferSize);
+        this.byteBufferPool = new ByteBufferPool(bufferSize, 16);
         this.readQueue = new ConcurrentLinkedDeque<>();
         this.writeQueue = new ConcurrentLinkedQueue<>();
         this.state = State.READ;
