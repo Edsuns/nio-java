@@ -125,8 +125,8 @@ public class NIOWorker implements Runnable, Closeable {
             clientChannel.connect(local);
             clientChannel.register(selector, SelectionKey.OP_CONNECT);
         }
-        executorService.execute(this);
         state |= STATE_BIND;
+        executorService.execute(this);
         return this;
     }
 

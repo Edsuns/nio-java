@@ -15,7 +15,7 @@ public class Profiler {
     }
 
     public void printReport() {
-        StringBuilder builder = new StringBuilder("[Profiler Report]");
+        StringBuilder builder = new StringBuilder("\n[Profiler Report]\n");
         builder.append("byteBufferPoolHits=").append(byteBufferPoolHits).append("\n");
         System.out.println(builder);
     }
