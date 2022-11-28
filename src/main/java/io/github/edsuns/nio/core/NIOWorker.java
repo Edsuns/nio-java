@@ -1,22 +1,16 @@
 package io.github.edsuns.nio.core;
 
+import io.github.edsuns.nio.log.Log;
+
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedSelectorException;
-import java.nio.channels.SelectableChannel;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.util.Iterator;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
-
-import io.github.edsuns.nio.log.Log;
+import java.util.concurrent.*;
 
 /**
  * @author edsuns@qq.com
@@ -36,15 +30,24 @@ public class NIOWorker implements Runnable, Closeable {
     private static final Log log = Log.getLog(NIOWorker.class);
 
     private final ProcessorFactory processorFactory;
-    private ExecutorService executorService;
+    private ExecutorService threadPool;
 
     @Nullable
     private Selector selector = null;
     private int state = STATE_NEW;
 
-    public NIOWorker(ProcessorFactory processorFactory, ExecutorService executorService) {
+    public NIOWorker(ProcessorFactory processorFactory, int threads) {
+        if (threads <= 0) throw new IllegalArgumentException("threads <= 0");
         this.processorFactory = processorFactory;
-        this.executorService = executorService;
+        this.threadPool = newFixedThreadPool(threads);
+    }
+
+    static ExecutorService newFixedThreadPool(int nThreads) {
+        return new ThreadPoolExecutor(nThreads, nThreads,
+                0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(),
+                Executors.defaultThreadFactory(),
+                new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
     public synchronized void awaitConnection() throws IOException {
@@ -75,10 +78,6 @@ public class NIOWorker implements Runnable, Closeable {
         if ((state & STATE_SHUTDOWN) == 0 && (s = selector) != null) {
             SelectionKey key = null;
             try {
-                if (Thread.currentThread().isInterrupted()) {
-                    // will close in finally block
-                    return;
-                }
                 s.select(1_000L);
                 Iterator<SelectionKey> iter = s.selectedKeys().iterator();
                 while (iter.hasNext()) {
@@ -104,8 +103,12 @@ public class NIOWorker implements Runnable, Closeable {
                 cancelAndCloseKey(key);
             }
         }
-        // run in loop
-        executorService.execute(this);
+        try {
+            // run in loop
+            threadPool.execute(this);
+        } catch (RejectedExecutionException e) {
+            // shutdown
+        }
     }
 
     public synchronized NIOWorker bind(SocketAddress local, boolean serverOrClient) throws IOException {
@@ -126,7 +129,7 @@ public class NIOWorker implements Runnable, Closeable {
             clientChannel.register(selector, SelectionKey.OP_CONNECT);
         }
         state |= STATE_BIND;
-        executorService.execute(this);
+        threadPool.execute(this);
         return this;
     }
 
@@ -152,18 +155,19 @@ public class NIOWorker implements Runnable, Closeable {
         _selector.close();
         state |= STATE_SHUTDOWN;
 
-        executorService.shutdown();
+        threadPool.shutdown();
         try {
-            if (!executorService.awaitTermination(60L, TimeUnit.SECONDS)) {
+            if (!threadPool.awaitTermination(60L, TimeUnit.SECONDS)) {
                 throw new IOException("executorService termination timeout");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException(e);
         }
-        executorService = null;
+        threadPool = null;
 
         state |= STATE_CLOSED;
+        log.debug("NIOWorker closed");
     }
 
     protected void cancelAndCloseKey(@Nullable SelectionKey key) {
@@ -232,7 +236,7 @@ public class NIOWorker implements Runnable, Closeable {
             state = State.CLOSE;
         } else {
             // always call read to update the state even if zero bytes were read
-            state = processor.read(readBuffer);
+            state = processor.read(readBuffer, threadPool);
         }
         switch (state) {
             case READ:

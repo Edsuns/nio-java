@@ -1,12 +1,12 @@
 package io.github.edsuns.nio.core;
 
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
 
 import static io.github.edsuns.nio.util.ByteBufferUtil.popInt;
 import static java.util.Objects.requireNonNull;
@@ -19,7 +19,6 @@ import static java.util.Objects.requireNonNull;
 public abstract class QueuedProcessor implements NIOProcessor, Runnable {
 
     protected final ByteBufferPool byteBufferPool;
-    protected final ExecutorService executorService;
     protected State state;
     protected boolean mark;
     protected final ConcurrentLinkedDeque<ByteBuffer> readQueue;
@@ -27,14 +26,13 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
     private int readLength = 0;
     private int readCount = 0;
 
-    public QueuedProcessor(int bufferSize, ExecutorService executorService) {
+    public QueuedProcessor(int bufferSize) {
         if (bufferSize <= 0) throw new IllegalArgumentException("bufferSize <= 0");
         this.byteBufferPool = new ByteBufferPool(bufferSize, 16);
         this.readQueue = new ConcurrentLinkedDeque<>();
         this.writeQueue = new ConcurrentLinkedQueue<>();
         this.state = State.READ;
         this.mark = true;
-        this.executorService = executorService;
     }
 
     @Override
@@ -60,7 +58,7 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
     }
 
     @Override
-    public State read(ByteBuffer readBuffer) {
+    public State read(ByteBuffer readBuffer, ExecutorService executorService) {
         if (mark) {
             readLength = popInt(readBuffer);
             mark = false;
@@ -70,12 +68,10 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
         if (read < readLength) {
             return this.state = State.READ;
         } else {
-            this.executorService.execute(this);
+            executorService.execute(this);
             return this.state = State.WRITE;
         }
     }
-
-    protected abstract void onMessage(ByteArrayOutputStream message);
 
     @Nullable
     @Override
@@ -109,8 +105,10 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
         onMessage(packMessageFromReadQueue());
     }
 
+    protected abstract void onMessage(ByteArrayOutputStream message);
+
     protected ByteArrayOutputStream packMessageFromReadQueue() {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream(readLength);
         int n = 0, cnt;
         ByteBuffer byteBuffer;
         while ((byteBuffer = readQueue.poll()) != null) {

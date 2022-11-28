@@ -1,20 +1,16 @@
 package io.github.edsuns.nio;
 
+import io.github.edsuns.nio.client.NIOClient;
+import io.github.edsuns.nio.log.Profiler;
+import io.github.edsuns.nio.server.NIOServer;
+import org.junit.jupiter.api.Test;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
-import io.github.edsuns.nio.client.NIOClient;
-import io.github.edsuns.nio.log.Profiler;
-import io.github.edsuns.nio.server.NIOServer;
-import org.junit.jupiter.api.Test;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -33,12 +29,12 @@ public class BenchmarkTest {
         byte[] message = generateMessage(messageSize);
         int threads = 4, opPerThread = 1000;
 
-        NIOServer server = new NIOServer(bufferSize, Executors.newFixedThreadPool(4), ByteArrayOutputStream::toByteArray);
+        NIOServer server = new NIOServer(bufferSize, 4, ByteArrayOutputStream::toByteArray);
         server.start(localhost);
 
         List<NIOClient> clients = new LinkedList<>();
         for (int i = 0; i < threads; i++) {
-            NIOClient client = new NIOClient(bufferSize, Executors.newFixedThreadPool(1));
+            NIOClient client = new NIOClient(bufferSize, 1);
             client.start(localhost);
             clients.add(client);
         }
@@ -50,7 +46,22 @@ public class BenchmarkTest {
         for (NIOClient client : clients) {
             Future<Object> task = threadPool.submit(() -> {
                 List<Future<ByteArrayOutputStream>> replies = new LinkedList<>();
-                for (int j = 0; j < opPerThread; j++) {
+
+                int half = opPerThread / 2;
+
+                for (int j = 0; j < half; j++) {
+                    replies.add(client.send(message));
+                }
+                for (Future<ByteArrayOutputStream> reply : replies) {
+                    assertArrayEquals(message, reply.get().toByteArray());
+                }
+
+                Future<ByteArrayOutputStream> future = client.send(message);
+                long s = System.currentTimeMillis();
+                assertArrayEquals(message, future.get().toByteArray());
+                System.out.printf("delay: %sms\n", System.currentTimeMillis() - s);
+
+                for (int j = 0; j < half; j++) {
                     replies.add(client.send(message));
                 }
                 for (Future<ByteArrayOutputStream> reply : replies) {

@@ -1,15 +1,14 @@
 package io.github.edsuns.nio;
 
+import io.github.edsuns.nio.client.NIOClient;
+import io.github.edsuns.nio.log.Log;
+import io.github.edsuns.nio.log.Profiler;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-
-import io.github.edsuns.nio.client.NIOClient;
-import io.github.edsuns.nio.log.Log;
-import io.github.edsuns.nio.log.Profiler;
 
 /**
  * @author edsuns@qq.com
@@ -23,7 +22,7 @@ public class ClientTest {
     private final static Log log = Log.getLog(ClientTest.class);
 
     public static void main(String[] args) throws IOException, ExecutionException, InterruptedException {
-        NIOClient client = new NIOClient(2048, Executors.newFixedThreadPool(2));
+        NIOClient client = new NIOClient(2048, 2);
         client.start(new InetSocketAddress("localhost", 8082));
         log.info("server: %s", client.send(("hi").getBytes(StandardCharsets.UTF_8)).get().toString());
 

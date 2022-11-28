@@ -1,14 +1,13 @@
 package io.github.edsuns.nio.server;
 
+import io.github.edsuns.nio.core.Handler;
+import io.github.edsuns.nio.core.NIOWorker;
+
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.SocketAddress;
-import java.util.concurrent.ExecutorService;
-import javax.annotation.ParametersAreNonnullByDefault;
-
-import io.github.edsuns.nio.core.Handler;
-import io.github.edsuns.nio.core.NIOWorker;
 
 /**
  * @author edsuns@qq.com
@@ -19,20 +18,15 @@ public class NIOServer implements Closeable {
 
     private final NIOWorker worker;
 
-    public NIOServer(int bufferSize, ExecutorService executorService, Handler<ByteArrayOutputStream, byte[]> handler) {
+    public NIOServer(int bufferSize, int threads, Handler<ByteArrayOutputStream, byte[]> handler) {
         this.worker = new NIOWorker(
-                () -> new ServerProcessor(bufferSize, executorService, handler),
-                executorService
+                () -> new ServerProcessor(bufferSize, handler),
+                threads
         );
     }
 
     public void start(SocketAddress local) throws IOException {
-        try {
-            worker.bind(local, true);
-        } catch (IOException e) {
-            close();
-            throw e;
-        }
+        worker.bind(local, true);
     }
 
     @Override

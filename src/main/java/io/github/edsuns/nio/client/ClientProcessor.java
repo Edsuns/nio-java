@@ -6,10 +6,11 @@ import io.github.edsuns.nio.core.State;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
-import java.util.concurrent.*;
-import java.util.function.Consumer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static io.github.edsuns.nio.util.ByteBufferUtil.wrapWithLength;
+import static java.util.Objects.requireNonNull;
 
 /**
  * @author edsuns@qq.com
@@ -18,47 +19,26 @@ import static io.github.edsuns.nio.util.ByteBufferUtil.wrapWithLength;
 @ParametersAreNonnullByDefault
 public class ClientProcessor extends QueuedProcessor {
 
-    private final ConcurrentLinkedQueue<Consumer<ByteArrayOutputStream>> callbackQueue;
+    private final ConcurrentLinkedQueue<CompletableFuture<ByteArrayOutputStream>> callbackQueue;
 
-    public ClientProcessor(int bufferSize, ExecutorService executorService) {
-        super(bufferSize, executorService);
+    public ClientProcessor(int bufferSize) {
+        super(bufferSize);
         this.callbackQueue = new ConcurrentLinkedQueue<>();
         this.state = State.WRITE;
         this.mark = false;
     }
 
     @Override
-    protected synchronized void onMessage(ByteArrayOutputStream message) {
-        Consumer<ByteArrayOutputStream> callback = callbackQueue.poll();
-        if (callback != null) {
-            callback.accept(message);
-        }
+    protected void onMessage(ByteArrayOutputStream message) {
+        requireNonNull(callbackQueue.poll()).complete(message);
     }
 
-    public Future<ByteArrayOutputStream> send(byte[] message) {
-        ConsumerFuture<ByteArrayOutputStream> future = new ConsumerFuture<>();
+    public CompletableFuture<ByteArrayOutputStream> send(byte[] message) {
+        CompletableFuture<ByteArrayOutputStream> future = new CompletableFuture<>();
         this.callbackQueue.offer(future);
         ByteBuffer msg = wrapWithLength(message);
         this.writeQueue.offer(msg);
         return future;
-    }
-
-    static class ConsumerFuture<T> extends FutureTask<T> implements Consumer<T> {
-        static final Callable<?> callable = () -> null;
-
-        @SuppressWarnings("unchecked")
-        public ConsumerFuture() {
-            super((Callable<T>) callable);
-        }
-
-        @Override
-        public void run() {
-        }
-
-        @Override
-        public void accept(T message) {
-            set(message);
-        }
     }
 
 }

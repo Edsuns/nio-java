@@ -1,15 +1,14 @@
 package io.github.edsuns.nio;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.Scanner;
-import java.util.concurrent.Executors;
-
 import io.github.edsuns.nio.core.Handler;
 import io.github.edsuns.nio.log.Log;
 import io.github.edsuns.nio.log.Profiler;
 import io.github.edsuns.nio.server.NIOServer;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.Scanner;
 
 /**
  * @author edsuns@qq.com
@@ -28,7 +27,7 @@ public class ServerTest {
             return msg.toByteArray();
         };
         int port = 8082;
-        NIOServer server = new NIOServer(2048, Executors.newFixedThreadPool(2), handler);
+        NIOServer server = new NIOServer(2048, 2, handler);
         server.start(new InetSocketAddress("localhost", port));
         log.info("server started at port: %s", port);
         Scanner scanner = new Scanner(System.in);

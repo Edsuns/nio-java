@@ -7,6 +7,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author edsuns@qq.com
@@ -22,7 +23,7 @@ public interface NIOProcessor extends Closeable {
 
     ByteBuffer readBuffer();
 
-    State read(ByteBuffer readBuffer);
+    State read(ByteBuffer readBuffer, ExecutorService executorService);
 
     @Nullable
     ByteBuffer writeBuffer();
