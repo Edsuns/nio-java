@@ -1,12 +1,12 @@
 package io.github.edsuns.nio.core;
 
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import static io.github.edsuns.nio.util.ByteBufferUtil.popInt;
 import static java.util.Objects.requireNonNull;
@@ -18,8 +18,8 @@ import static java.util.Objects.requireNonNull;
 @ParametersAreNonnullByDefault
 public abstract class QueuedProcessor implements NIOProcessor, Runnable {
 
+    protected final ByteBufferPool byteBufferPool;
     protected final ExecutorService executorService;
-    protected final int bufferSize;
     protected State state;
     protected boolean mark;
     protected final ConcurrentLinkedDeque<ByteBuffer> readQueue;
@@ -28,7 +28,8 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
     private int readCount = 0;
 
     public QueuedProcessor(int bufferSize, ExecutorService executorService) {
-        this.bufferSize = bufferSize;
+        if (bufferSize <= 0) throw new IllegalArgumentException("bufferSize <= 0");
+        this.byteBufferPool = new ByteBufferPool(bufferSize);
         this.readQueue = new ConcurrentLinkedDeque<>();
         this.writeQueue = new ConcurrentLinkedQueue<>();
         this.state = State.READ;
@@ -54,7 +55,7 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
             return requireNonNull(readQueue.pollLast());
         } else {
             readCount++;
-            return ByteBuffer.allocate(bufferSize);
+            return byteBufferPool.getByteBuffer();
         }
     }
 
@@ -64,7 +65,7 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
             readLength = popInt(readBuffer);
             mark = false;
         }
-        int read = readCount * bufferSize - readBuffer.remaining();
+        int read = readCount * readBuffer.capacity() - readBuffer.remaining();
         readQueue.offerLast(readBuffer);
         if (read < readLength) {
             return this.state = State.READ;
@@ -125,6 +126,8 @@ public abstract class QueuedProcessor implements NIOProcessor, Runnable {
                 byteBuffer.limit(byteBuffer.capacity());
                 readQueue.offerFirst(byteBuffer);
                 break;
+            } else {
+                byteBufferPool.recycle(byteBuffer);
             }
         }
         // reset

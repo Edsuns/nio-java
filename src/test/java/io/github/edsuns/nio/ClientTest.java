@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 
 import io.github.edsuns.nio.client.NIOClient;
 import io.github.edsuns.nio.log.Log;
+import io.github.edsuns.nio.log.Profiler;
 
 /**
  * @author edsuns@qq.com
@@ -28,8 +29,13 @@ public class ClientTest {
 
         Scanner scanner = new Scanner(System.in);
         while (scanner.hasNextLine()) {
-            String msg = client.send(scanner.nextLine().getBytes(StandardCharsets.UTF_8)).get().toString();
-            log.info("server: %s", msg);
+            String line = scanner.nextLine();
+            if ("prof".equals(line)) {
+                Profiler.INSTANCE.printReport();
+            } else {
+                String msg = client.send(line.getBytes(StandardCharsets.UTF_8)).get().toString();
+                log.info("server: %s", msg);
+            }
         }
     }
 }
