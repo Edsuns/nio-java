@@ -1,13 +1,13 @@
 package io.github.edsuns.nio;
 
-import io.github.edsuns.nio.core.Configuration;
-import io.github.edsuns.nio.core.Handler;
-import io.github.edsuns.nio.log.Log;
-import io.github.edsuns.nio.server.NIOServer;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.concurrent.Executors;
+
+import io.github.edsuns.nio.core.Handler;
+import io.github.edsuns.nio.log.Log;
+import io.github.edsuns.nio.server.NIOServer;
 
 /**
  * @author edsuns@qq.com
@@ -21,13 +21,12 @@ public class ServerTest {
     private static final Log log = Log.getLog(ServerTest.class);
 
     public static void main(String[] args) throws IOException {
-        Configuration configuration = Configuration.create();
         Handler<ByteArrayOutputStream, byte[]> handler = msg -> {
             log.info("client: %s", msg);
             return msg.toByteArray();
         };
-        int port = 80;
-        NIOServer server = new NIOServer(configuration, handler);
+        int port = 8082;
+        NIOServer server = new NIOServer(2048, Executors.newFixedThreadPool(2), handler);
         server.start(new InetSocketAddress("localhost", port));
         log.info("server started at port: %s", port);
     }

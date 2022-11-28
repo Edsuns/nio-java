@@ -1,15 +1,14 @@
 package io.github.edsuns.nio.server;
 
-import io.github.edsuns.nio.core.Configuration;
-import io.github.edsuns.nio.core.Handler;
-import io.github.edsuns.nio.core.NIOWorker;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import io.github.edsuns.nio.core.Handler;
+import io.github.edsuns.nio.core.NIOWorker;
 
 /**
  * @author edsuns@qq.com
@@ -18,13 +17,11 @@ import java.util.concurrent.ExecutorService;
 @ParametersAreNonnullByDefault
 public class NIOServer implements Closeable {
 
-    private final ExecutorService executorService;
     private final NIOWorker worker;
 
-    public NIOServer(Configuration configuration, Handler<ByteArrayOutputStream, byte[]> handler) {
-        this.executorService = configuration.createExecutorService();
+    public NIOServer(int bufferSize, ExecutorService executorService, Handler<ByteArrayOutputStream, byte[]> handler) {
         this.worker = new NIOWorker(
-                () -> new ServerProcessor(configuration.getBufferSize(), executorService, handler),
+                () -> new ServerProcessor(bufferSize, executorService, handler),
                 executorService
         );
     }

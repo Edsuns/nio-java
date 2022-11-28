@@ -1,17 +1,22 @@
 package io.github.edsuns.nio.core;
 
-import io.github.edsuns.nio.log.Log;
-
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.*;
+import java.nio.channels.ClosedSelectorException;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import io.github.edsuns.nio.log.Log;
 
 /**
  * @author edsuns@qq.com
@@ -67,7 +72,7 @@ public class NIOWorker implements Runnable, Closeable {
         }
 
         Selector s;
-        while ((state & STATE_SHUTDOWN) == 0 && (s = selector) != null) {
+        if ((state & STATE_SHUTDOWN) == 0 && (s = selector) != null) {
             SelectionKey key = null;
             try {
                 if (Thread.currentThread().isInterrupted()) {
@@ -94,17 +99,13 @@ public class NIOWorker implements Runnable, Closeable {
                 }
             } catch (ClosedSelectorException cse) {
                 // shutdown
-                break;
             } catch (Throwable e) {
                 log.debug("an error occurred in worker loop", e);
                 cancelAndCloseKey(key);
             }
         }
-        try {
-            close();
-        } catch (IOException e) {
-            log.debug("an error occurred when close()", e);
-        }
+        // run in loop
+        executorService.execute(this);
     }
 
     public synchronized NIOWorker bind(SocketAddress local, boolean serverOrClient) throws IOException {
@@ -135,7 +136,7 @@ public class NIOWorker implements Runnable, Closeable {
             return;
         }
         if ((state & STATE_BIND) == 0) {
-            throw new IllegalStateException("not bound yet");
+            return;
         }
         state |= STATE_CLOSE;
 
