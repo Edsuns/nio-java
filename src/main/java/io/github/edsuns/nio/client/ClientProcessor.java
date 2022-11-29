@@ -1,15 +1,14 @@
 package io.github.edsuns.nio.client;
 
-import io.github.edsuns.nio.core.QueuedProcessor;
-import io.github.edsuns.nio.core.State;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import javax.annotation.ParametersAreNonnullByDefault;
 
-import static io.github.edsuns.nio.util.ByteBufferUtil.wrapWithLength;
+import io.github.edsuns.nio.core.QueuedProcessor;
+
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -22,10 +21,8 @@ public class ClientProcessor extends QueuedProcessor {
     private final ConcurrentLinkedQueue<CompletableFuture<ByteArrayOutputStream>> callbackQueue;
 
     public ClientProcessor(int bufferSize) {
-        super(bufferSize);
+        super(bufferSize, SelectionKey.OP_WRITE);
         this.callbackQueue = new ConcurrentLinkedQueue<>();
-        this.state = State.WRITE;
-        this.mark = false;
     }
 
     @Override
@@ -36,9 +33,40 @@ public class ClientProcessor extends QueuedProcessor {
     public CompletableFuture<ByteArrayOutputStream> send(byte[] message) {
         CompletableFuture<ByteArrayOutputStream> future = new CompletableFuture<>();
         this.callbackQueue.offer(future);
-        ByteBuffer msg = wrapWithLength(message);
-        this.writeQueue.offer(msg);
+        this.reply(message);
         return future;
     }
 
+    @Override
+    public void close() {
+        shutdown();
+    }
+
+    private synchronized void shutdown() {
+        for (int i = 0; i < 3; i++) {
+            CompletableFuture<?> future;
+            while ((future = callbackQueue.poll()) != null) {
+                try {
+                    future.get();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof RuntimeException) {
+                        throw (RuntimeException) cause;
+                    } else if (cause instanceof Error) {
+                        throw (Error) cause;
+                    } else {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            try {
+                wait(100L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+    }
 }

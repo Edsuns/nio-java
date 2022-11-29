@@ -1,13 +1,13 @@
 package io.github.edsuns.nio.core;
 
-import org.intellij.lang.annotations.MagicConstant;
-
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.util.concurrent.ExecutorService;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import org.intellij.lang.annotations.MagicConstant;
 
 /**
  * @author edsuns@qq.com
@@ -19,16 +19,18 @@ public interface NIOProcessor extends Closeable {
     @MagicConstant(flagsFromClass = SelectionKey.class)
     int initialKeyOps();
 
-    State state();
-
     ByteBuffer readBuffer();
 
-    State read(ByteBuffer readBuffer, ExecutorService executorService);
+    @MagicConstant(flagsFromClass = SelectionKey.class)
+    int read(ByteBuffer readBuffer, ExecutorService executorService);
 
     @Nullable
     ByteBuffer writeBuffer();
 
-    State wrote(@Nullable ByteBuffer writeBuffer);
+    @MagicConstant(flagsFromClass = SelectionKey.class)
+    int wrote(ByteBuffer writeBuffer);
+
+    void reply(byte[] message);
 
     void close();
 }

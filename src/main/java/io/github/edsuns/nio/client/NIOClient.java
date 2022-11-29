@@ -1,15 +1,15 @@
 package io.github.edsuns.nio.client;
 
-import io.github.edsuns.nio.core.NIOProcessor;
-import io.github.edsuns.nio.core.NIOWorker;
-import io.github.edsuns.nio.core.ProcessorFactory;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.concurrent.Future;
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import io.github.edsuns.nio.core.NIOProcessor;
+import io.github.edsuns.nio.core.NIOWorker;
+import io.github.edsuns.nio.core.ProcessorFactory;
 
 /**
  * @author edsuns@qq.com
@@ -42,11 +42,6 @@ public class NIOClient implements Closeable {
         if (closed) return;
         closed = true;
         worker.close();
-        try {
-            wait(100L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     static class ClientProcessorFactory implements ProcessorFactory {

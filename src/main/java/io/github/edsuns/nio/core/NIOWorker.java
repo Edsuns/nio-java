@@ -1,16 +1,26 @@
 package io.github.edsuns.nio.core;
 
-import io.github.edsuns.nio.log.Log;
-
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.*;
+import java.nio.channels.ClosedSelectorException;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.Iterator;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
+
+import io.github.edsuns.nio.log.Log;
 
 /**
  * @author edsuns@qq.com
@@ -206,22 +216,16 @@ public class NIOWorker implements Runnable, Closeable {
         NIOProcessor processor = (NIOProcessor) key.attachment();
 
         ByteBuffer writeBuffer = processor.writeBuffer();
-        State state;
-        int n = writeBuffer == null ? 0 : clientChannel.write(writeBuffer);
+        if (writeBuffer == null) {
+            // TODO: replace with heartbeat message
+            return;
+        }
+        int n = clientChannel.write(writeBuffer);
         if (n < 0) {
-            state = State.CLOSE;
+            cancelAndCloseKey(key);
         } else {
             // always call wrote to update the state even if zero bytes were written
-            state = processor.wrote(writeBuffer);
-        }
-        switch (state) {
-            case READ:
-            case WRITE:
-                key.interestOps(state.getKeyOps());
-                break;
-            case CLOSE:
-                cancelAndCloseKey(key);
-                break;
+            key.interestOps(processor.wrote(writeBuffer));
         }
     }
 
@@ -230,22 +234,12 @@ public class NIOWorker implements Runnable, Closeable {
         NIOProcessor processor = (NIOProcessor) key.attachment();
 
         ByteBuffer readBuffer = processor.readBuffer();
-        State state;
         int n = clientChannel.read(readBuffer);
         if (n < 0) {
-            state = State.CLOSE;
+            cancelAndCloseKey(key);
         } else {
             // always call read to update the state even if zero bytes were read
-            state = processor.read(readBuffer, threadPool);
-        }
-        switch (state) {
-            case READ:
-            case WRITE:
-                key.interestOps(state.getKeyOps());
-                break;
-            case CLOSE:
-                cancelAndCloseKey(key);
-                break;
+            key.interestOps(processor.read(readBuffer, threadPool));
         }
     }
 
